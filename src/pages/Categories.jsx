@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useAuth } from '../context/useAuth.js'
 import {
   createCategory,
@@ -32,6 +32,20 @@ export default function Categories() {
   const [error, setError] = useState('')
   const [formError, setFormError] = useState('')
   const [notice, setNotice] = useState('')
+  const formCardRef = useRef(null)
+  const nameInputRef = useRef(null)
+
+  useEffect(() => {
+    if (!formOpen) return undefined
+
+    const frame = window.requestAnimationFrame(() => {
+      const reduceMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false
+      formCardRef.current?.scrollIntoView({ behavior: reduceMotion ? 'auto' : 'smooth', block: 'center' })
+      nameInputRef.current?.focus({ preventScroll: true })
+    })
+
+    return () => window.cancelAnimationFrame(frame)
+  }, [editingId, formOpen])
 
   useEffect(() => {
     if (!user?.id) return undefined
@@ -152,7 +166,7 @@ export default function Categories() {
       {error && <p className="inline-error" role="alert">{error}</p>}
 
       {formOpen && (
-        <section className="category-form-card" aria-labelledby="category-form-title">
+        <section ref={formCardRef} className="category-form-card" aria-labelledby="category-form-title">
           <div className="category-form-heading">
             <div>
               <p className="eyebrow">{editingId ? 'UPDATE CATEGORY' : 'NEW CATEGORY'}</p>
@@ -164,7 +178,7 @@ export default function Categories() {
           <form className="category-form" onSubmit={submitForm}>
             <label className="data-field">
               <span>Category name</span>
-              <input type="text" maxLength={60} required value={form.name} onChange={(event) => setForm((current) => ({ ...current, name: event.target.value }))} placeholder="e.g. Pet care" />
+              <input ref={nameInputRef} type="text" maxLength={60} required value={form.name} onChange={(event) => setForm((current) => ({ ...current, name: event.target.value }))} placeholder="e.g. Pet care" />
             </label>
             <label className="data-field">
               <span>Type</span>
