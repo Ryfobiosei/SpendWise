@@ -1,6 +1,6 @@
 # SpendWise
 
-SpendWise is a personal finance app built with React, JavaScript, Vite, React Router, CSS, and Supabase. The current version includes the public landing page and Supabase Auth flows. Its initial database schema and row-level security policies are defined in a versioned SQL migration; apply that migration to the Supabase project before connecting the finance screens. The dashboard finance pages are still placeholders.
+SpendWise is a personal finance app built with React, JavaScript, Vite, React Router, CSS, and Supabase. The current version includes the public landing page, Supabase Auth flows, a user-owned database schema, and a transaction ledger with add, edit, delete, search, filtering, and pagination.
 
 ## Current structure
 
@@ -9,10 +9,10 @@ SpendWise is a personal finance app built with React, JavaScript, Vite, React Ro
 - `src/pages` contains route-level pages.
 - `src/context` holds shared authentication state.
 - `src/lib` holds the configured Supabase client.
-- `src/services` will hold finance data access and calculations.
+- `src/services` contains Supabase data access and validation for categories and transactions.
 - `supabase/migrations` contains versioned database schema changes.
 
-Dashboard routes require an authenticated Supabase user. Until the finance features are built, dashboard sections show setup placeholders instead of fabricated financial data.
+Dashboard routes require an authenticated Supabase user. The overview, budgets, analytics, and settings sections remain in progress and show setup placeholders rather than fabricated financial data.
 
 ## Requirements
 
@@ -59,11 +59,11 @@ The initial migration is `supabase/migrations/20260925130000_initial_spendwise_s
 
 Each table has RLS enabled. The browser's `anon` role has no table privileges; authenticated users receive only the required table operations. Policies scope reads and writes to `auth.uid()`. Foreign keys cascade a user's records when their Auth user is removed, and prevent deleting a category while a budget or transaction still refers to it. The migration also backfills profiles and starter categories for accounts that already exist.
 
-Apply the migration to the Supabase project once before using the finance data features. In Supabase Studio, open **SQL Editor**, create a query, paste the contents of the migration file, and run it. If you later deploy migrations with the Supabase CLI, first synchronize the CLI migration history with this already-applied schema.
+The initial migration has been applied to the Supabase project and its table/RLS metadata was confirmed. If you later deploy migrations with the Supabase CLI, first synchronize the CLI migration history with this already-applied schema.
 
 ## Current verification
 
-The production bundle and lint checks pass with `npm run build` and `npm run lint`. Registration, sign-in, logout, and protected-route behavior were confirmed in the browser. The database migration is versioned locally but has not yet been applied to the Supabase project or tested against a PostgreSQL instance.
+The production bundle and lint checks pass with `npm run build` and `npm run lint`. Registration, sign-in, logout, and protected-route behavior were confirmed in the browser. The database tables and RLS policies were confirmed in Supabase Studio. Transaction writes still need a live browser smoke test.
 
 ## Build and lint
 
@@ -74,8 +74,8 @@ npm run lint
 
 ## Planned work
 
-1. Connect categories and transaction services to the new schema.
-2. Build transaction management and category editing.
-3. Add budget management, analytics, and data-based insights.
+1. Add category management and a live transaction smoke test.
+2. Build the financial overview and monthly budgets.
+3. Add analytics and data-based spending insights.
 4. Complete settings, responsive review, and database isolation tests.
 5. Prepare deployment and verify the live application.

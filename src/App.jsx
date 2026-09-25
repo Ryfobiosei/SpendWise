@@ -1,3 +1,4 @@
+import { lazy, Suspense } from 'react'
 import { Link, Route, Routes } from 'react-router'
 import DashboardLayout from './components/layout/DashboardLayout.jsx'
 import Landing from './pages/Landing.jsx'
@@ -6,6 +7,12 @@ import ProtectedRoute from './components/layout/ProtectedRoute.jsx'
 import Register from './pages/Register.jsx'
 import RoutePlaceholder from './pages/RoutePlaceholder.jsx'
 import './App.css'
+
+const Transactions = lazy(() => import('./pages/Transactions.jsx'))
+
+function RouteLoading() {
+  return <div className="route-loading" role="status"><span className="auth-spinner" aria-hidden="true" />Loading this page…</div>
+}
 
 function NotFound() {
   return (
@@ -27,7 +34,7 @@ export default function App() {
       <Route element={<ProtectedRoute />}>
         <Route path="/dashboard" element={<DashboardLayout />}>
           <Route index element={<RoutePlaceholder title="Overview" description="Your financial overview will appear here once your account and data are connected." />} />
-          <Route path="transactions" element={<RoutePlaceholder title="Transactions" description="Income and expense tracking will be built here." />} />
+          <Route path="transactions" element={<Suspense fallback={<RouteLoading />}><Transactions /></Suspense>} />
           <Route path="budgets" element={<RoutePlaceholder title="Budgets" description="Monthly category budgets will be built here." />} />
           <Route path="analytics" element={<RoutePlaceholder title="Analytics" description="Charts and spending insights will use your saved transactions." />} />
           <Route path="settings" element={<RoutePlaceholder title="Settings" description="Your profile, currency, and preferences will be managed here." />} />
