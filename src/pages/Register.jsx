@@ -2,9 +2,10 @@ import { useState } from 'react'
 import { Link, useNavigate } from 'react-router'
 import Brand from '../components/ui/Brand.jsx'
 import { useAuth } from '../context/useAuth.js'
+import { readableAuthError } from '../lib/authErrors.js'
 
 export default function Register() {
-  const { signUp, isConfigured, configurationError } = useAuth()
+  const { signUp, resendSignupConfirmation, isConfigured, configurationError } = useAuth()
   const navigate = useNavigate()
   const [fullName, setFullName] = useState('')
   const [email, setEmail] = useState('')
@@ -13,12 +14,14 @@ export default function Register() {
   const [busy, setBusy] = useState(false)
   const [message, setMessage] = useState('')
   const [error, setError] = useState('')
+  const [confirmationPending, setConfirmationPending] = useState(false)
 
   async function handleSubmit(event) {
     event.preventDefault()
     setBusy(true)
     setError('')
     setMessage('')
+    setConfirmationPending(false)
 
     try {
       if (!isConfigured) throw new Error(configurationError || 'Supabase is not configured.')
@@ -28,9 +31,29 @@ export default function Register() {
       if (!normalizedName || normalizedName.length > 80) throw new Error('Enter a name between 1 and 80 characters.')
       const { session } = await signUp({ email: email.trim(), password, fullName: normalizedName })
       if (session) navigate('/dashboard', { replace: true })
-      else setMessage('Check your inbox for a confirmation link to finish creating your account.')
+      else {
+        setConfirmationPending(true)
+        setMessage('Check your inbox for a confirmation link. After you confirm, SpendWise will open your dashboard.')
+      }
     } catch (submitError) {
-      setError(submitError?.message || 'We could not create your account. Please try again.')
+      setError(readableAuthError(submitError, 'We could not create your account. Please try again.'))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function handleResendConfirmation() {
+    setBusy(true)
+    setError('')
+    setMessage('')
+
+    try {
+      if (!email.trim()) throw new Error('Enter your email address first.')
+      await resendSignupConfirmation(email.trim())
+      setConfirmationPending(true)
+      setMessage('If this account still needs confirmation, a new email is on its way. Check your spam folder too.')
+    } catch (resendError) {
+      setError(readableAuthError(resendError, 'We could not resend the confirmation email. Please try again.'))
     } finally {
       setBusy(false)
     }
@@ -47,6 +70,7 @@ export default function Register() {
         {!isConfigured && <div className="form-alert form-alert-error" role="alert">{configurationError} Add it to <code>.env.local</code> and restart the development server.</div>}
         {error && <div className="form-alert form-alert-error" role="alert">{error}</div>}
         {message && <div className="form-alert form-alert-success" role="status">{message}</div>}
+        {confirmationPending && <button className="auth-inline-link" type="button" onClick={handleResendConfirmation} disabled={busy}>{busy ? 'Sending…' : 'Resend confirmation email'}</button>}
 
         <form className="auth-form" onSubmit={handleSubmit}>
           <label className="form-field">

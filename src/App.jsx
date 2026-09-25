@@ -6,6 +6,7 @@ import Login from './pages/Login.jsx'
 import ProtectedRoute from './components/layout/ProtectedRoute.jsx'
 import AppErrorBoundary from './components/layout/AppErrorBoundary.jsx'
 import Register from './pages/Register.jsx'
+import AuthCallback from './pages/AuthCallback.jsx'
 import './App.css'
 
 const Transactions = lazy(() => import('./pages/Transactions.jsx'))
@@ -37,6 +38,7 @@ export default function App() {
         <Route path="/" element={<Landing />} />
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
+        <Route path="/auth/callback" element={<AuthCallback />} />
         <Route element={<ProtectedRoute />}>
           <Route path="/dashboard" element={<DashboardLayout />}>
             <Route index element={<Suspense fallback={<RouteLoading />}><Dashboard /></Suspense>} />

@@ -22,7 +22,7 @@
 
 * { box-sizing: border-box; }
 
-html { min-width: 320px; scroll-behavior: smooth; }
+html { min-width: 320px; overflow-x: clip; scroll-behavior: smooth; }
 
 body {
   min-width: 320px;

@@ -33,8 +33,19 @@ export function AuthProvider({ children }) {
         password,
         options: {
           data: { full_name: fullName },
-          emailRedirectTo: `${window.location.origin}/login`,
+          emailRedirectTo: `${window.location.origin}/auth/callback`,
         },
+      })
+
+      if (error) throw error
+      return data
+    },
+    resendSignupConfirmation: async (email) => {
+      const client = requireSupabase()
+      const { data, error } = await client.auth.resend({
+        type: 'signup',
+        email,
+        options: { emailRedirectTo: `${window.location.origin}/auth/callback` },
       })
 
       if (error) throw error

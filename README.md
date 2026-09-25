@@ -4,7 +4,7 @@ SpendWise is a responsive personal finance application built with React, JavaScr
 
 ## Features
 
-- Supabase email and password registration, sign-in, sign-out, password recovery, and password changes.
+- Supabase email and password registration, resendable email confirmation returning to the signed-in dashboard, sign-in, sign-out, password recovery, and password changes.
 - Protected workspace routes that wait for Supabase session initialization.
 - User-owned profiles, categories, transactions, and monthly budgets, protected with Row Level Security.
 - Transaction create, edit, delete, search, filters, sorting, pagination, validation, and useful empty/loading/error states.
@@ -55,6 +55,10 @@ npm run dev
 
 Vite prints a local URL, usually `http://localhost:5173`. In Supabase Auth URL settings, set the Site URL for the environment and add the local redirect patterns you use, such as `http://127.0.0.1:5173/**` and `http://localhost:5173/**`. The wildcard allows the confirmation, password-reset, and email-change paths to return to the app.
 
+After signup, the email confirmation redirects to `/auth/callback`. The Supabase browser client restores the confirmed session there and SpendWise opens the authenticated dashboard.
+
+The built-in Supabase email sender is for testing only: it is limited to project team addresses and a very low hourly rate. Before public deployment, configure a custom SMTP provider and a verified sender domain in Supabase Auth settings. Delivery limits then depend on both Supabase and the selected provider.
+
 ## Database setup
 
 The initial schema migration has already been applied to the project's Supabase database. Two additional migrations add the budget and reporting functions. In Supabase Studio, open **SQL Editor**, paste and run these files in order:
@@ -92,8 +96,9 @@ Vercel and Netlify SPA route rewrites are included. To deploy:
 2. Import it into Vercel or Netlify and use the default Vite build command, `npm run build`, with output directory `dist`.
 3. Add `VITE_SUPABASE_URL` and `VITE_SUPABASE_PUBLISHABLE_KEY` as deployment environment variables.
 4. Set the Supabase Auth Site URL to the production domain and add its redirect pattern (for example, `https://your-domain.example/**`) to allowed redirect URLs.
-5. Apply the two additional SQL migrations above if they have not been applied.
-6. After publishing, run the production checks in `docs/VERIFICATION.md`, including sign-in, RLS isolation, and CRUD flows.
+5. Configure custom SMTP and a verified sender domain in Supabase Auth settings before allowing public signups.
+6. Apply the two additional SQL migrations above if they have not been applied.
+7. After publishing, run the production checks in `docs/VERIFICATION.md`, including sign-in, RLS isolation, and CRUD flows.
 
 Only the browser publishable key belongs in the frontend deployment environment. Keep Supabase secret and service-role keys out of GitHub and the deployment settings used to build the browser app.
 

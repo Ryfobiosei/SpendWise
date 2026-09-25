@@ -2,15 +2,10 @@ import { useEffect, useState } from 'react'
 import { Link, useLocation, useNavigate, useSearchParams } from 'react-router'
 import Brand from '../components/ui/Brand.jsx'
 import { useAuth } from '../context/useAuth.js'
-
-function readableError(error) {
-  if (error?.message?.includes('Invalid login credentials')) return 'That email and password do not match. Check them and try again.'
-  if (error?.message?.includes('Email not confirmed')) return 'Please confirm your email using the link we sent before signing in.'
-  return error?.message || 'Something went wrong. Please try again.'
-}
+import { readableAuthError } from '../lib/authErrors.js'
 
 export default function Login() {
-  const { signIn, resetPassword, updatePassword, user, isConfigured, configurationError } = useAuth()
+  const { signIn, resendSignupConfirmation, resetPassword, updatePassword, user, isConfigured, configurationError } = useAuth()
   const location = useLocation()
   const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
@@ -22,6 +17,7 @@ export default function Login() {
   const [busy, setBusy] = useState(false)
   const [message, setMessage] = useState('')
   const [error, setError] = useState('')
+  const [canResendConfirmation, setCanResendConfirmation] = useState(false)
 
   useEffect(() => {
     if (user && mode !== 'new-password') navigate('/dashboard', { replace: true })
@@ -31,6 +27,24 @@ export default function Login() {
     setMode(nextMode)
     setError('')
     setMessage('')
+    setCanResendConfirmation(false)
+  }
+
+  async function handleResendConfirmation() {
+    setBusy(true)
+    setError('')
+    setMessage('')
+
+    try {
+      if (!email.trim()) throw new Error('Enter your email address first.')
+      await resendSignupConfirmation(email.trim())
+      setMessage('If this account still needs confirmation, a new email is on its way. Check your spam folder too.')
+      setCanResendConfirmation(false)
+    } catch (resendError) {
+      setError(readableAuthError(resendError, 'We could not resend the confirmation email. Please try again.'))
+    } finally {
+      setBusy(false)
+    }
   }
 
   async function handleSubmit(event) {
@@ -60,7 +74,8 @@ export default function Login() {
         navigate(destination ? `${destination.pathname}${destination.search || ''}${destination.hash || ''}` : '/dashboard', { replace: true })
       }
     } catch (submitError) {
-      setError(readableError(submitError))
+      setCanResendConfirmation(mode === 'sign-in' && /email not confirmed/i.test(submitError?.message || ''))
+      setError(readableAuthError(submitError))
     } finally {
       setBusy(false)
     }
@@ -85,12 +100,13 @@ export default function Login() {
         {recoveryLink && mode === 'new-password' && !user && <div className="form-alert form-alert-info" role="status">Open this page using the password reset link from your email. If you already did, request a fresh link.</div>}
         {error && <div className="form-alert form-alert-error" role="alert">{error}</div>}
         {message && <div className="form-alert form-alert-success" role="status">{message}</div>}
+        {canResendConfirmation && mode === 'sign-in' && <button type="button" className="auth-inline-link" onClick={handleResendConfirmation} disabled={busy}>{busy ? 'Sending…' : 'Resend confirmation email'}</button>}
 
         <form className="auth-form" onSubmit={handleSubmit}>
           {mode !== 'new-password' && (
             <label className="form-field">
               <span>Email address</span>
-              <input type="email" name="email" autoComplete="email" required value={email} onChange={(event) => setEmail(event.target.value)} placeholder="you@example.com" />
+              <input type="email" name="email" autoComplete="email" required value={email} onChange={(event) => { setEmail(event.target.value); setCanResendConfirmation(false) }} placeholder="you@example.com" />
             </label>
           )}
           {mode !== 'forgot' && (
