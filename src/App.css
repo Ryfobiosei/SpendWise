@@ -176,6 +176,43 @@
 .connection-status { display: inline-flex; align-items: center; gap: 7px; padding: 7px 10px; border: 1px solid #e8eee2; border-radius: 20px; color: #71836e; background: #fafbf7; font-size: 9px; }
 .connection-status span { width: 6px; height: 6px; border-radius: 50%; background: #d2a65c; }
 .workspace-content { max-width: 1110px; margin: 0 auto; padding: 0 42px; }
+.sidebar-account { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: auto 3px 13px; padding: 11px 8px; border-top: 1px solid #edf0eb; }
+.sidebar-user { overflow: hidden; color: #708178; font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
+.sidebar-signout { flex: 0 0 auto; padding: 5px 7px; border: 0; border-radius: 6px; color: var(--forest); background: transparent; font-size: 10px; font-weight: 700; cursor: pointer; }
+.sidebar-signout:hover { background: #edf5e9; }
+.signout-error { margin: 14px 42px 0; color: #a33d3d; font-size: 12px; }
+
+.auth-page { display: grid; min-height: 100vh; place-items: center; padding: 40px 20px; background: radial-gradient(ellipse at 50% 0%, #edf5e6 0%, #fbfcf8 51%); }
+.auth-card { width: min(100%, 448px); padding: 36px 38px 30px; border: 1px solid #e5ece3; border-radius: 16px; background: #fff; box-shadow: 0 22px 70px #18342d0d; }
+.auth-card > .brand { margin-bottom: 28px; }
+.auth-eyebrow { margin: 0; }
+.auth-card h1, .auth-config-card h1 { margin: 11px 0 0; color: var(--ink); font-family: 'Manrope', 'Segoe UI', sans-serif; font-size: 34px; font-weight: 700; letter-spacing: -1.8px; line-height: 1.15; }
+.auth-description { margin: 10px 0 23px; color: var(--ink-muted); font-size: 13px; line-height: 1.7; }
+.auth-form { display: grid; gap: 15px; }
+.form-field { display: grid; gap: 7px; color: #425b50; font-size: 11px; font-weight: 700; }
+.form-field input { width: 100%; min-height: 45px; padding: 0 13px; border: 1px solid #dfe8df; border-radius: 8px; outline: none; color: var(--ink); background: #fff; font-size: 13px; font-weight: 400; transition: border .16s ease, box-shadow .16s ease; }
+.form-field input::placeholder { color: #a3b0a9; }
+.form-field input:focus { border-color: #73a78a; box-shadow: 0 0 0 3px #73a78a22; }
+.auth-submit { width: 100%; margin-top: 4px; border: 0; cursor: pointer; }
+.auth-submit:disabled { opacity: .58; cursor: not-allowed; transform: none; }
+.auth-inline-link { justify-self: end; padding: 0; border: 0; color: var(--forest); background: transparent; font-size: 11px; font-weight: 700; text-decoration: none; cursor: pointer; }
+.auth-inline-link:hover, .auth-switch a:hover { text-decoration: underline; }
+.auth-switch { margin: 22px 0 0; color: #75877e; text-align: center; font-size: 11px; }
+.auth-switch a { color: var(--forest); font-weight: 700; text-decoration: none; }
+.auth-switch .auth-inline-link { display: inline; }
+.auth-home-link { display: block; width: fit-content; margin: 23px auto 0; color: #8a9991; font-size: 10px; text-decoration: none; }
+.auth-home-link:hover { color: var(--forest); }
+.form-alert { margin: 0 0 15px; padding: 11px 12px; border: 1px solid; border-radius: 8px; font-size: 11px; line-height: 1.55; }
+.form-alert-error { border-color: #f0d3d0; color: #943e38; background: #fff8f7; }
+.form-alert-success { border-color: #d5e9d8; color: #2d6646; background: #f5fbf3; }
+.form-alert-info { border-color: #dce8df; color: #586e62; background: #f7faf6; }
+.form-alert code, .auth-config-card code { padding: 1px 4px; border-radius: 4px; background: #eef3eb; font-size: .95em; }
+.auth-state { display: grid; min-height: 100vh; place-content: center; justify-items: center; gap: 14px; padding: 24px; color: var(--ink-muted); text-align: center; font-size: 13px; }
+.auth-state p { margin: 0; }
+.auth-spinner { width: 28px; height: 28px; border: 3px solid #dce8dc; border-top-color: var(--forest); border-radius: 50%; animation: auth-spin .75s linear infinite; }
+.auth-config-card { max-width: 470px; padding: 30px; border: 1px solid var(--line); border-radius: 12px; background: #fff; text-align: left; }
+.auth-config-card p { margin-top: 13px; line-height: 1.7; }
+@keyframes auth-spin { to { transform: rotate(360deg); } }
 
 @media (max-width: 900px) {
   .page-container { width: min(100% - 42px, 700px); }

@@ -62,6 +62,13 @@ export function AuthProvider({ children }) {
       if (error) throw error
       return data
     },
+    updatePassword: async (password) => {
+      const client = requireSupabase()
+      const { data, error } = await client.auth.updateUser({ password })
+
+      if (error) throw error
+      return data
+    },
   }), [user, session, loading])
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>

@@ -1,5 +1,7 @@
-import { NavLink, Outlet } from 'react-router'
+import { useState } from 'react'
+import { NavLink, Outlet, useNavigate } from 'react-router'
 import Brand from '../ui/Brand.jsx'
+import { useAuth } from '../../context/useAuth.js'
 
 const navigation = [
   { to: '/dashboard', label: 'Overview', icon: '◫', end: true },
@@ -10,6 +12,20 @@ const navigation = [
 ]
 
 export default function DashboardLayout() {
+  const { signOut, user } = useAuth()
+  const navigate = useNavigate()
+  const [signOutError, setSignOutError] = useState('')
+
+  async function handleSignOut() {
+    setSignOutError('')
+    try {
+      await signOut()
+      navigate('/login', { replace: true })
+    } catch (error) {
+      setSignOutError(error?.message || 'Could not sign out. Please try again.')
+    }
+  }
+
   return (
     <div className="workspace-shell">
       <aside className="sidebar">
@@ -27,13 +43,18 @@ export default function DashboardLayout() {
           <span className="note-mark" aria-hidden="true">✳</span>
           <p>Your finances, with more clarity.</p>
         </div>
+        <div className="sidebar-account">
+          <span className="sidebar-user" title={user?.email}>{user?.email || 'Your account'}</span>
+          <button className="sidebar-signout" type="button" onClick={handleSignOut}>Sign out</button>
+        </div>
         <div className="sidebar-footer">PERSONAL FINANCE · GHANA</div>
       </aside>
       <main className="workspace-main">
         <header className="workspace-topbar">
           <span>Personal workspace</span>
-          <span className="connection-status"><span /> Setup in progress</span>
+          <span className="connection-status"><span /> Account connected</span>
         </header>
+        {signOutError && <p className="signout-error" role="alert">{signOutError}</p>}
         <div className="workspace-content"><Outlet /></div>
       </main>
     </div>
