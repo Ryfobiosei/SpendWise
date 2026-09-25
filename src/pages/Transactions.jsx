@@ -1,7 +1,8 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useAuth } from '../context/useAuth.js'
 import { formatCurrency, formatTransactionDate } from '../lib/formatCurrency.js'
 import { listCategories } from '../services/categoryService.js'
+import { getProfile } from '../services/profileService.js'
 import {
   createTransaction,
   deleteTransaction,
@@ -40,6 +41,7 @@ function initialFilters() {
 export default function Transactions() {
   const { user } = useAuth()
   const [categories, setCategories] = useState([])
+  const [currency, setCurrency] = useState('GHS')
   const [transactions, setTransactions] = useState([])
   const [filters, setFilters] = useState(initialFilters)
   const [totalCount, setTotalCount] = useState(0)
@@ -54,6 +56,8 @@ export default function Transactions() {
   const [editingId, setEditingId] = useState(null)
   const [deleteId, setDeleteId] = useState(null)
   const [form, setForm] = useState(blankForm())
+  const formCardRef = useRef(null)
+  const typeSelectRef = useRef(null)
 
   useEffect(() => {
     if (!user?.id) return undefined
@@ -75,6 +79,25 @@ export default function Transactions() {
 
     return () => { active = false }
   }, [filters, user?.id])
+
+  useEffect(() => {
+    if (!user?.id) return undefined
+    let active = true
+    getProfile(user.id)
+      .then((profile) => { if (active) setCurrency(profile.currency || 'GHS') })
+      .catch((profileError) => { if (active) setError(profileError?.message || 'Could not load your currency preference.') })
+    return () => { active = false }
+  }, [user?.id])
+
+  useEffect(() => {
+    if (!formOpen) return undefined
+    const frame = window.requestAnimationFrame(() => {
+      const reduceMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false
+      formCardRef.current?.scrollIntoView({ behavior: reduceMotion ? 'auto' : 'smooth', block: 'center' })
+      typeSelectRef.current?.focus({ preventScroll: true })
+    })
+    return () => window.cancelAnimationFrame(frame)
+  }, [editingId, formOpen])
 
   async function reloadTransactions({ append = false } = {}) {
     if (!user?.id) return
@@ -199,7 +222,7 @@ export default function Transactions() {
       {error && <p className="inline-error" role="alert">{error}</p>}
 
       {formOpen && (
-        <section className="transaction-form-card" aria-labelledby="transaction-form-title">
+        <section ref={formCardRef} className="transaction-form-card" aria-labelledby="transaction-form-title">
           <div className="transaction-form-heading">
             <div>
               <p className="eyebrow">{editingId ? 'UPDATE ENTRY' : 'NEW ENTRY'}</p>
@@ -212,7 +235,7 @@ export default function Transactions() {
           <form className="transaction-form" onSubmit={submitForm}>
             <label className="data-field">
               <span>Type</span>
-              <select required value={form.type} onChange={(event) => setForm((current) => ({ ...current, type: event.target.value, categoryId: '' }))}>
+              <select ref={typeSelectRef} required value={form.type} onChange={(event) => setForm((current) => ({ ...current, type: event.target.value, categoryId: '' }))}>
                 <option value="expense">Expense</option>
                 <option value="income">Income</option>
               </select>
@@ -324,7 +347,7 @@ export default function Transactions() {
                       <td className="description-cell">{transaction.description || <span className="muted-cell">No description</span>}</td>
                       <td><span className="category-pill">{transaction.category?.name || 'Uncategorized'}</span></td>
                       <td><span className={'type-pill type-' + transaction.type}>{transaction.type === 'income' ? 'Income' : 'Expense'}</span></td>
-                      <td className={'amount-cell amount-' + transaction.type}>{transaction.type === 'expense' ? '−' : '+'}{formatCurrency(transaction.amount)}</td>
+                      <td className={'amount-cell amount-' + transaction.type}>{transaction.type === 'expense' ? '−' : '+'}{formatCurrency(transaction.amount, currency)}</td>
                       <td className="row-actions">
                         {deleteId === transaction.id ? (
                           <span className="delete-confirm"><span>Delete?</span><button type="button" onClick={() => confirmDelete(transaction.id)} disabled={deletingId === transaction.id}>{deletingId === transaction.id ? 'Deleting…' : 'Yes'}</button><button type="button" onClick={() => setDeleteId(null)} disabled={deletingId === transaction.id}>No</button></span>

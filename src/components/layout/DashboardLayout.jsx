@@ -48,12 +48,12 @@ export default function DashboardLayout() {
           <span className="sidebar-user" title={user?.email}>{user?.email || 'Your account'}</span>
           <button className="sidebar-signout" type="button" onClick={handleSignOut}>Sign out</button>
         </div>
-        <div className="sidebar-footer">PERSONAL FINANCE · GHANA</div>
+        <div className="sidebar-footer">PERSONAL FINANCE</div>
       </aside>
       <main className="workspace-main">
         <header className="workspace-topbar">
           <span>Personal workspace</span>
-          <span className="connection-status"><span /> Account connected</span>
+          <span className="connection-status"><span /> Signed in</span>
         </header>
         {signOutError && <p className="signout-error" role="alert">{signOutError}</p>}
         <div className="workspace-content"><Outlet /></div>

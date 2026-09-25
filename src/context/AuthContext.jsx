@@ -69,6 +69,15 @@ export function AuthProvider({ children }) {
       if (error) throw error
       return data
     },
+    updateEmail: async (email) => {
+      const client = requireSupabase()
+      const { data, error } = await client.auth.updateUser({ email }, {
+        emailRedirectTo: `${window.location.origin}/dashboard/settings?email-updated=1`,
+      })
+
+      if (error) throw error
+      return data
+    },
   }), [user, session, loading])
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>

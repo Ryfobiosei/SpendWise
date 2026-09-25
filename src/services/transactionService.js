@@ -13,6 +13,9 @@ function validateTransaction(input) {
   }
 
   const amountText = String(input.amount ?? '').trim()
+  if (!/^\d+(?:\.\d{1,2})?$/.test(amountText)) {
+    throw new Error('Enter a positive amount with no more than two decimal places.')
+  }
   const amount = Number(amountText)
   if (!Number.isFinite(amount) || amount <= 0) {
     throw new Error('Enter an amount greater than zero.')

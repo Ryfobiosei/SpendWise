@@ -24,7 +24,9 @@ export default function Register() {
       if (!isConfigured) throw new Error(configurationError || 'Supabase is not configured.')
       if (password.length < 8) throw new Error('Choose a password with at least 8 characters.')
       if (password !== confirmation) throw new Error('The passwords do not match.')
-      const { session } = await signUp({ email: email.trim(), password, fullName: fullName.trim() })
+      const normalizedName = fullName.trim()
+      if (!normalizedName || normalizedName.length > 80) throw new Error('Enter a name between 1 and 80 characters.')
+      const { session } = await signUp({ email: email.trim(), password, fullName: normalizedName })
       if (session) navigate('/dashboard', { replace: true })
       else setMessage('Check your inbox for a confirmation link to finish creating your account.')
     } catch (submitError) {

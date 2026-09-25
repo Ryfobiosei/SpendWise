@@ -87,7 +87,7 @@ export default function Landing() {
           <div className="page-container about-inner">
             <span className="about-symbol" aria-hidden="true">✳</span>
             <div><p className="eyebrow">A MORE GROUNDED MONEY ROUTINE</p><h2>Clarity is a good<br />place to start.</h2></div>
-            <p className="about-copy">SpendWise is being built to make personal finance feel approachable: useful details when you need them, a clear view of the bigger picture, and room to shape goals that are yours.</p>
+            <p className="about-copy">SpendWise makes personal finance feel approachable: useful details when you need them, a clear view of the bigger picture, and room to shape goals that are yours.</p>
           </div>
         </section>
       </main>
