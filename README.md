@@ -1,6 +1,6 @@
 # SpendWise
 
-SpendWise is a personal finance app built with React, JavaScript, Vite, React Router, CSS, and Supabase. The current version includes the public landing page, Supabase Auth flows, a user-owned database schema, and a transaction ledger with add, edit, delete, search, filtering, and pagination.
+SpendWise is a personal finance app built with React, JavaScript, Vite, React Router, CSS, and Supabase. The current version includes the public landing page, Supabase Auth flows, a user-owned database schema, transaction management, and category management.
 
 ## Current structure
 
@@ -12,7 +12,7 @@ SpendWise is a personal finance app built with React, JavaScript, Vite, React Ro
 - `src/services` contains Supabase data access and validation for categories and transactions.
 - `supabase/migrations` contains versioned database schema changes.
 
-Dashboard routes require an authenticated Supabase user. The overview, budgets, analytics, and settings sections remain in progress and show setup placeholders rather than fabricated financial data.
+Dashboard routes require an authenticated Supabase user. Transactions support add, edit, delete, description search, category/type/date/amount filters, sorting, and pagination. Categories support create, rename, type changes, search, and deletion; the database prevents deleting or retyping categories that are in use. The overview, budgets, analytics, and settings sections remain in progress and show setup placeholders rather than fabricated financial data.
 
 ## Requirements
 
@@ -63,7 +63,7 @@ The initial migration has been applied to the Supabase project and its table/RLS
 
 ## Current verification
 
-The production bundle and lint checks pass with `npm run build` and `npm run lint`. Registration, sign-in, logout, and protected-route behavior were confirmed in the browser. The database tables and RLS policies were confirmed in Supabase Studio. Transaction writes still need a live browser smoke test.
+The production bundle and lint checks pass with `npm run build` and `npm run lint`. Registration, sign-in, logout, protected-route behavior, database table/RLS metadata, and a live transaction create/edit/search/delete smoke test were confirmed.
 
 ## Build and lint
 
@@ -74,8 +74,7 @@ npm run lint
 
 ## Planned work
 
-1. Add category management and a live transaction smoke test.
-2. Build the financial overview and monthly budgets.
-3. Add analytics and data-based spending insights.
-4. Complete settings, responsive review, and database isolation tests.
-5. Prepare deployment and verify the live application.
+1. Build the financial overview and monthly budgets.
+2. Add analytics and data-based spending insights.
+3. Complete settings, responsive review, and cross-user database isolation tests.
+4. Prepare deployment and verify the live application.

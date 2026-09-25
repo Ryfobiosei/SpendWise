@@ -6,6 +6,7 @@ import { useAuth } from '../../context/useAuth.js'
 const navigation = [
   { to: '/dashboard', label: 'Overview', icon: '◫', end: true },
   { to: '/dashboard/transactions', label: 'Transactions', icon: '⇄' },
+  { to: '/dashboard/categories', label: 'Categories', icon: '▦' },
   { to: '/dashboard/budgets', label: 'Budgets', icon: '◎' },
   { to: '/dashboard/analytics', label: 'Analytics', icon: '▥' },
   { to: '/dashboard/settings', label: 'Settings', icon: '⚙' },
