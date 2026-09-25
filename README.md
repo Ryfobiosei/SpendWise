@@ -1,6 +1,6 @@
 # SpendWise
 
-SpendWise is a personal finance application built with React, JavaScript, Vite, and React Router. It is being developed in stages, with Supabase Auth and the user-isolated finance database planned for the next stages.
+SpendWise is a personal finance application built with React, JavaScript, Vite, React Router, and Supabase Auth. It is being developed in stages; the current build contains the client and authentication context, while account forms and the user-isolated finance database are next.
 
 ## Current structure
 
@@ -26,6 +26,15 @@ npm run dev
 ```
 
 Open the local URL printed by Vite (usually `http://localhost:5173`).
+
+## Supabase environment
+
+Copy `.env.example` to `.env.local` and add the project's URL and publishable key. `.env.local` is ignored by Git. Never put a Supabase secret or service-role key in a `VITE_` variable.
+
+```env
+VITE_SUPABASE_URL=https://your-project.supabase.co
+VITE_SUPABASE_PUBLISHABLE_KEY=sb_publishable_...
+```
 
 ## Build and lint
 
