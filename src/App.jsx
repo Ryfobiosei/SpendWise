@@ -1,122 +1,56 @@
-import { useState } from 'react'
-import heroImg from './assets/hero.png'
-import reactLogo from './assets/react.svg'
-import viteLogo from './assets/vite.svg'
+import { Link, Route, Routes } from 'react-router'
+import DashboardLayout from './components/layout/DashboardLayout.jsx'
+import Landing from './pages/Landing.jsx'
+import RoutePlaceholder from './pages/RoutePlaceholder.jsx'
 import './App.css'
 
-function App() {
-  const [count, setCount] = useState(0)
-
+function NotFound() {
   return (
-    <>
-      <section id="center">
-        <div className="hero">
-          <img src={heroImg} className="base" width="170" height="179" alt="" />
-          <img src={reactLogo} className="framework" alt="React logo" />
-          <img src={viteLogo} className="vite" alt="Vite logo" />
-        </div>
-        <div>
-          <h1>Get started</h1>
-          <p>
-            Edit <code>src/App.jsx</code> and save to test <code>HMR</code>
-          </p>
-        </div>
-        <button
-          type="button"
-          className="counter"
-          onClick={() => setCount((count) => count + 1)}
-        >
-          Count is {count}
-        </button>
-      </section>
-
-      <div className="ticks"></div>
-
-      <section id="next-steps">
-        <div id="docs">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#documentation-icon"></use>
-          </svg>
-          <h2>Documentation</h2>
-          <p>Your questions, answered</p>
-          <ul>
-            <li>
-              <a href="https://vite.dev/" target="_blank">
-                <img className="logo" src={viteLogo} alt="" />
-                Explore Vite
-              </a>
-            </li>
-            <li>
-              <a href="https://react.dev/" target="_blank">
-                <img className="button-icon" src={reactLogo} alt="" />
-                Learn more
-              </a>
-            </li>
-          </ul>
-        </div>
-        <div id="social">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#social-icon"></use>
-          </svg>
-          <h2>Connect with us</h2>
-          <p>Join the Vite community</p>
-          <ul>
-            <li>
-              <a href="https://github.com/vitejs/vite" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#github-icon"></use>
-                </svg>
-                GitHub
-              </a>
-            </li>
-            <li>
-              <a href="https://chat.vite.dev/" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#discord-icon"></use>
-                </svg>
-                Discord
-              </a>
-            </li>
-            <li>
-              <a href="https://x.com/vite_js" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#x-icon"></use>
-                </svg>
-                X.com
-              </a>
-            </li>
-            <li>
-              <a href="https://bsky.app/profile/vite.dev" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#bluesky-icon"></use>
-                </svg>
-                Bluesky
-              </a>
-            </li>
-          </ul>
-        </div>
-      </section>
-
-      <div className="ticks"></div>
-      <section id="spacer"></section>
-    </>
+    <main className="not-found page-container">
+      <span className="eyebrow">404 · PAGE NOT FOUND</span>
+      <h1>This page isn’t in your plan.</h1>
+      <p>Let’s take you back to a place that exists.</p>
+      <Link className="button button-primary" to="/">Back to SpendWise</Link>
+    </main>
   )
 }
 
-export default App
+export default function App() {
+  return (
+    <Routes>
+      <Route path="/" element={<Landing />} />
+      <Route
+        path="/login"
+        element={(
+          <RoutePlaceholder
+            eyebrow="YOUR ACCOUNT"
+            title="Sign in"
+            description="Secure sign-in is coming with the Supabase authentication stage."
+            backTo="/"
+            backLabel="Back to home"
+          />
+        )}
+      />
+      <Route
+        path="/register"
+        element={(
+          <RoutePlaceholder
+            eyebrow="GET STARTED"
+            title="Create your account"
+            description="Account creation will be connected to Supabase Auth in a later stage."
+            backTo="/"
+            backLabel="Back to home"
+          />
+        )}
+      />
+      <Route path="/dashboard" element={<DashboardLayout />}>
+        <Route index element={<RoutePlaceholder title="Overview" description="Your financial overview will appear here once your account and data are connected." />} />
+        <Route path="transactions" element={<RoutePlaceholder title="Transactions" description="Income and expense tracking will be built here." />} />
+        <Route path="budgets" element={<RoutePlaceholder title="Budgets" description="Monthly category budgets will be built here." />} />
+        <Route path="analytics" element={<RoutePlaceholder title="Analytics" description="Charts and spending insights will use your saved transactions." />} />
+        <Route path="settings" element={<RoutePlaceholder title="Settings" description="Your profile, currency, and preferences will be managed here." />} />
+      </Route>
+      <Route path="*" element={<NotFound />} />
+    </Routes>
+  )
+}
