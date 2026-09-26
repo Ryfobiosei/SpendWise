@@ -1,6 +1,6 @@
 import 'expo-sqlite/localStorage/install';
 import 'react-native-url-polyfill/auto';
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -46,6 +46,18 @@ const humanDate = (value) => {
   return Number.isNaN(d.getTime()) ? value : d.toLocaleDateString('en', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' });
 };
 const friendlyError = (e) => e?.message || 'Something went wrong. Please try again.';
+function authErrorMessage(error) {
+  const code = String(error?.code || '').toLowerCase();
+  const message = String(error?.message || '');
+  if (/email address not authorized/i.test(message)) return 'Supabase’s built-in email sender only delivers to project team addresses. Configure a custom SMTP provider in Supabase Auth settings.';
+  if (/email rate limit|over_email_send_rate_limit|too many requests|after \d+ seconds/i.test(`${code} ${message}`)) return 'Supabase temporarily rate limited email delivery. Wait before requesting another email, or configure a custom SMTP provider in Supabase Auth settings.';
+  if (/user_already_exists|user already registered|already registered/i.test(`${code} ${message}`)) return 'An account may already use this email. Try signing in or use Forgot password.';
+  if (/weak_password|password should be at least|password is too short/i.test(`${code} ${message}`)) return 'Choose a stronger password with at least 8 characters.';
+  if (/invalid email|email_address_invalid/i.test(`${code} ${message}`)) return 'Enter a valid email address and try again.';
+  if (/email not confirmed/i.test(message)) return 'Confirm your email first. Request another confirmation email if the link did not arrive.';
+  if (/invalid login credentials/i.test(message)) return 'That email and password do not match. Check them and try again.';
+  return message || 'Something went wrong. Please try again.';
+}
 
 export default function App() {
   const [session, setSession] = useState(null);
@@ -59,6 +71,7 @@ export default function App() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [form, setForm] = useState(null);
+  const handledAuthUrls = useRef(new Set());
 
   useEffect(() => {
     if (supabaseConfigError) { setAuthReady(true); return undefined; }
@@ -75,36 +88,40 @@ export default function App() {
   }, []);
 
   const handleAuthUrl = useCallback(async (url) => {
-    if (!url || !url.startsWith('spendwise://')) return;
-    const parsed = Linking.parse(url);
-    const fragment = url.split('#')[1] || '';
-    const hash = new URLSearchParams(fragment);
-    const params = new URLSearchParams(parsed.queryParams || {});
-    const accessToken = hash.get('access_token') || params.get('access_token');
-    const refreshToken = hash.get('refresh_token') || params.get('refresh_token');
-    const tokenHash = params.get('token_hash') || hash.get('token_hash');
-    const type = params.get('type') || hash.get('type') || 'signup';
-    const code = params.get('code');
-    const callbackError = params.get('error_description') || params.get('error');
-    if (callbackError) {
-      Alert.alert('Email link problem', callbackError);
-      return;
-    }
-    if (accessToken && refreshToken) {
-      const { error: setError } = await supabase.auth.setSession({ access_token: accessToken, refresh_token: refreshToken });
-      if (setError) Alert.alert('Confirmation failed', setError.message);
+    const isInstalledCallback = typeof url === 'string' && url.startsWith('spendwise://auth/callback');
+    const isExpoGoCallback = typeof url === 'string' && /^exp:\/\//i.test(url) && url.includes('/--/auth/callback');
+    if ((!isInstalledCallback && !isExpoGoCallback) || handledAuthUrls.current.has(url)) return;
+    handledAuthUrls.current.add(url);
+    try {
+      const parsed = new URL(url);
+      const params = parsed.searchParams;
+      const hash = new URLSearchParams(parsed.hash.replace(/^#/, ''));
+      const accessToken = hash.get('access_token') || params.get('access_token');
+      const refreshToken = hash.get('refresh_token') || params.get('refresh_token');
+      const tokenHash = params.get('token_hash') || hash.get('token_hash');
+      const type = params.get('type') || hash.get('type') || 'signup';
+      const code = params.get('code');
+      const callbackError = params.get('error_description') || params.get('error') || hash.get('error_description') || hash.get('error');
+      if (callbackError) {
+        Alert.alert('Email link problem', callbackError);
+        return;
+      }
+      let authError;
+      if (accessToken && refreshToken) {
+        ({ error: authError } = await supabase.auth.setSession({ access_token: accessToken, refresh_token: refreshToken }));
+      } else if (tokenHash) {
+        ({ error: authError } = await supabase.auth.verifyOtp({ token_hash: tokenHash, type }));
+      } else if (code) {
+        ({ error: authError } = await supabase.auth.exchangeCodeForSession(code));
+      } else {
+        Alert.alert('Link could not be used', 'This email link is missing its sign-in details. Request a new link and open it on this device.');
+        return;
+      }
+      if (authError) Alert.alert(type === 'recovery' ? 'Password link expired' : 'Confirmation failed', authErrorMessage(authError));
       else if (type === 'recovery') setResetMode(true);
       else Alert.alert('Email confirmed', 'Your SpendWise account is ready.');
-    } else if (tokenHash) {
-      const { error: verifyError } = await supabase.auth.verifyOtp({ token_hash: tokenHash, type });
-      if (verifyError) Alert.alert('Confirmation failed', verifyError.message);
-      else if (type === 'recovery') setResetMode(true);
-      else Alert.alert('Email confirmed', 'Your SpendWise account is ready.');
-    } else if (code) {
-      const { error: exchangeError } = await supabase.auth.exchangeCodeForSession(code);
-      if (exchangeError) Alert.alert('Confirmation failed', exchangeError.message);
-      else if (type === 'recovery') setResetMode(true);
-      else Alert.alert('Email confirmed', 'Your SpendWise account is ready.');
+    } catch (error) {
+      Alert.alert('Confirmation failed', authErrorMessage(error));
     }
   }, []);
 
@@ -136,8 +153,8 @@ export default function App() {
   useEffect(() => { refresh(); }, [refresh]);
 
   const wrapped = async (fn, successMessage) => {
-    try { await fn(); setForm(null); setError(''); await refresh(); if (successMessage) Alert.alert('Saved', successMessage); }
-    catch (e) { setError(friendlyError(e)); }
+    try { await fn(); setForm(null); setError(''); await refresh(); if (successMessage) Alert.alert('Saved', successMessage); return { ok: true }; }
+    catch (e) { const message = friendlyError(e); setError(message); return { ok: false, error: message }; }
   };
 
   if (!authReady) return <Splash />;
@@ -177,7 +194,7 @@ export default function App() {
       <FinanceModal visible={!!form} form={form} setForm={setForm} data={data} currency={profile.currency} onSave={async (value) => {
         if (!form) return;
         const { kind, record } = form;
-        await wrapped(async () => {
+        return wrapped(async () => {
           if (kind === 'transaction') return record?.id ? updateTransaction(user.id, record.id, value) : createTransaction(user.id, value);
           if (kind === 'budget') return record?.id ? updateBudget(user.id, record.id, value) : createBudget(user.id, value);
           if (kind === 'category') return record?.id ? updateCategory(user.id, record.id, value) : createCategory(user.id, value);
@@ -192,50 +209,77 @@ function ConfigurationScreen() { return <View style={styles.center}><Text style=
 
 function AuthScreen() {
   const [mode, setMode] = useState('login');
-  const [email, setEmail] = useState(''); const [password, setPassword] = useState(''); const [name, setName] = useState('');
+  const [email, setEmail] = useState(''); const [password, setPassword] = useState(''); const [confirmPassword, setConfirmPassword] = useState(''); const [name, setName] = useState('');
+  const [confirmationPending, setConfirmationPending] = useState(false);
   const [working, setWorking] = useState(false); const [message, setMessage] = useState(''); const [error, setError] = useState('');
   const redirectTo = Linking.createURL('auth/callback');
   const submit = async () => {
     setWorking(true); setMessage(''); setError('');
     try {
+      const normalizedEmail = email.trim();
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail)) throw new Error('Enter a valid email address.');
       if (mode === 'forgot') {
-        const { error: e } = await supabase.auth.resetPasswordForEmail(email.trim(), { redirectTo });
+        const { error: e } = await supabase.auth.resetPasswordForEmail(normalizedEmail, { redirectTo });
         if (e) throw e;
-        setMessage('If an account uses that address, a password reset link has been sent.');
+        const redirectHint = redirectTo.startsWith('exp://')
+          ? 'For Expo Go, allow exp://**/--/auth/callback in Supabase Auth → URL Configuration → Redirect URLs.'
+          : 'For an installed app, allow spendwise://auth/callback in Supabase Auth → URL Configuration → Redirect URLs.';
+        setMessage(`If an account uses that address, a password reset link has been sent. ${redirectHint}`);
       } else if (mode === 'register') {
-        const { data, error: e } = await supabase.auth.signUp({ email: email.trim(), password, options: { data: { full_name: name.trim() }, emailRedirectTo: redirectTo } });
+        if (name.trim().length < 1 || name.trim().length > 80) throw new Error('Enter a name between 1 and 80 characters.');
+        if (password.length < 8) throw new Error('Choose a password with at least 8 characters.');
+        if (password !== confirmPassword) throw new Error('The passwords do not match.');
+        const { data, error: e } = await supabase.auth.signUp({ email: normalizedEmail, password, options: { data: { full_name: name.trim() }, emailRedirectTo: redirectTo } });
         if (e) throw e;
-        setMessage(data.session ? 'Account created. You are signed in.' : 'Account created. Check your email to confirm your address. Add spendwise://auth/callback to the Supabase Auth redirect URL allow list.');
+        if (data.session) setMessage('Account created. You are signed in.');
+        else if (data.user?.identities?.length === 0) setMessage('An account may already use this email. Try signing in or use Forgot password.');
+        else {
+          setConfirmationPending(true);
+          const redirectHint = redirectTo.startsWith('exp://')
+            ? 'For Expo Go, allow exp://**/--/auth/callback in Supabase Auth → URL Configuration → Redirect URLs.'
+            : 'For an installed app, allow spendwise://auth/callback in Supabase Auth → URL Configuration → Redirect URLs.';
+          setMessage(`Check your inbox, then open the confirmation link on this iPhone to finish signing up. ${redirectHint}`);
+        }
       } else {
-        const { error: e } = await supabase.auth.signInWithPassword({ email: email.trim(), password });
+        const { error: e } = await supabase.auth.signInWithPassword({ email: normalizedEmail, password });
         if (e) throw e;
       }
-    } catch (e) { setError(friendlyError(e)); }
+    } catch (e) { setError(authErrorMessage(e)); }
     finally { setWorking(false); }
   };
   const resend = async () => {
     setWorking(true); setError(''); setMessage('');
-    try { const { error: e } = await supabase.auth.resend({ type: 'signup', email: email.trim(), options: { emailRedirectTo: redirectTo } }); if (e) throw e; setMessage('If your account needs confirmation, a new link has been sent.'); }
-    catch (e) { setError(friendlyError(e)); } finally { setWorking(false); }
+    try {
+      const { error: e } = await supabase.auth.resend({ type: 'signup', email: email.trim(), options: { emailRedirectTo: redirectTo } });
+      if (e) throw e;
+      setConfirmationPending(true);
+      const redirectHint = redirectTo.startsWith('exp://')
+        ? 'For Expo Go, allow exp://**/--/auth/callback in Supabase Auth → URL Configuration → Redirect URLs.'
+        : 'For an installed app, allow spendwise://auth/callback in Supabase Auth → URL Configuration → Redirect URLs.';
+      setMessage(`If this account needs confirmation, a new email is on its way. Open the link on this iPhone. ${redirectHint}`);
+    }
+    catch (e) { setError(authErrorMessage(e)); } finally { setWorking(false); }
   };
   return <SafeAreaView style={styles.safe}><StatusBar barStyle="dark-content" /><KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.authWrap}><ScrollView contentContainerStyle={styles.authContent} keyboardShouldPersistTaps="handled">
     <View style={styles.brandMarkLarge}><Text style={styles.brandGlyphLarge}>S</Text></View><Text style={styles.logoBig}>SpendWise</Text><Text style={styles.authSub}>A clearer view of your everyday money.</Text>
     <View style={styles.authCard}><Text style={styles.eyebrow}>{mode === 'login' ? 'WELCOME BACK' : mode === 'forgot' ? 'ACCOUNT RECOVERY' : 'GET STARTED'}</Text><Text style={styles.authTitle}>{mode === 'login' ? 'Sign in to your account' : mode === 'forgot' ? 'Reset your password' : 'Create your account'}</Text>
-      {mode === 'register' && <Field label="Full name" value={name} onChangeText={setName} placeholder="Your name" autoCapitalize="words" />}
-      <Field label="Email address" value={email} onChangeText={setEmail} placeholder="you@example.com" keyboardType="email-address" autoCapitalize="none" />
-      {mode !== 'forgot' && <Field label="Password" value={password} onChangeText={setPassword} placeholder="At least 8 characters" secureTextEntry />}
+      {mode === 'register' && <Field label="Full name" value={name} onChangeText={setName} placeholder="Your name" autoCapitalize="words" autoComplete="name" returnKeyType="next" />}
+      <Field label="Email address" value={email} onChangeText={(value) => { setEmail(value); setConfirmationPending(false); setMessage(''); setError(''); }} placeholder="you@example.com" keyboardType="email-address" autoCapitalize="none" autoCorrect={false} autoComplete="email" textContentType="emailAddress" returnKeyType={mode === 'forgot' ? 'send' : 'next'} />
+      {mode !== 'forgot' && <Field label="Password" value={password} onChangeText={setPassword} placeholder="At least 8 characters" secureTextEntry autoCapitalize="none" autoCorrect={false} autoComplete={mode === 'register' ? 'new-password' : 'password'} textContentType={mode === 'register' ? 'newPassword' : 'password'} />}
+      {mode === 'register' && <Field label="Confirm password" value={confirmPassword} onChangeText={setConfirmPassword} placeholder="Enter it again" secureTextEntry autoCapitalize="none" autoCorrect={false} autoComplete="new-password" textContentType="newPassword" returnKeyType="done" onSubmitEditing={submit} />}
       {error ? <Notice text={error} /> : null}{message ? <Notice text={message} success /> : null}
-      <PrimaryButton title={working ? 'Please wait…' : mode === 'login' ? 'Sign in' : mode === 'forgot' ? 'Send reset link' : 'Create account'} onPress={submit} disabled={working || !email || (mode !== 'forgot' && !password) || (mode === 'register' && !name.trim())} />
+      <PrimaryButton title={working ? 'Please wait…' : mode === 'login' ? 'Sign in' : mode === 'forgot' ? 'Send reset link' : confirmationPending ? 'Confirmation email sent' : 'Create account'} onPress={submit} disabled={working || !email || (mode !== 'forgot' && !password) || (mode === 'register' && (!name.trim() || !confirmPassword || confirmationPending))} />
       {mode === 'login' && <Pressable disabled={working || !email} onPress={resend} style={styles.linkButton}><Text style={styles.link}>Resend confirmation email</Text></Pressable>}
+      {mode === 'register' && confirmationPending && <Pressable disabled={working} onPress={resend} style={styles.linkButton}><Text style={styles.link}>{working ? 'Sending…' : 'Resend confirmation email'}</Text></Pressable>}
       {mode === 'login' && <Pressable onPress={() => { setMode('forgot'); setError(''); setMessage(''); }} style={styles.linkButton}><Text style={styles.link}>Forgot password?</Text></Pressable>}
-      <Pressable onPress={() => { setMode(mode === 'login' ? 'register' : 'login'); setError(''); setMessage(''); }} style={styles.switchMode}><Text style={styles.muted}>{mode === 'login' ? 'New to SpendWise? ' : 'Already have an account? '}<Text style={styles.link}>{mode === 'login' ? 'Create one' : 'Sign in'}</Text></Text></Pressable>
+      <Pressable onPress={() => { setMode(mode === 'login' ? 'register' : 'login'); setError(''); setMessage(''); setConfirmationPending(false); }} style={styles.switchMode}><Text style={styles.muted}>{mode === 'login' ? 'New to SpendWise? ' : 'Already have an account? '}<Text style={styles.link}>{mode === 'login' ? 'Create one' : 'Sign in'}</Text></Text></Pressable>
     </View><Text style={styles.secureNote}>Your financial information is private and protected by your account.</Text>
   </ScrollView></KeyboardAvoidingView></SafeAreaView>;
 }
 
 function ResetPasswordScreen({ onComplete }) {
   const [password, setPassword] = useState(''); const [working, setWorking] = useState(false); const [error, setError] = useState('');
-  const save = async () => { setWorking(true); setError(''); try { const { error: e } = await supabase.auth.updateUser({ password }); if (e) throw e; Alert.alert('Password updated', 'You can continue using SpendWise.'); onComplete(); } catch (e) { setError(friendlyError(e)); } finally { setWorking(false); } };
+  const save = async () => { setWorking(true); setError(''); try { const { error: e } = await supabase.auth.updateUser({ password }); if (e) throw e; Alert.alert('Password updated', 'You can continue using SpendWise.'); onComplete(); } catch (e) { setError(authErrorMessage(e)); } finally { setWorking(false); } };
   return <SafeAreaView style={styles.safe}><KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.authWrap}><View style={styles.authContent}><View style={styles.brandMarkLarge}><Text style={styles.brandGlyphLarge}>S</Text></View><Text style={styles.logoBig}>SpendWise</Text><Text style={styles.authSub}>Choose a new password for your account.</Text><View style={styles.authCard}><Text style={styles.authTitle}>Set a new password</Text><Field label="New password" value={password} onChangeText={setPassword} placeholder="At least 8 characters" secureTextEntry />{error ? <Notice text={error} /> : null}<PrimaryButton title={working ? 'Saving…' : 'Update password'} onPress={save} disabled={working || password.length < 8} /></View></View></KeyboardAvoidingView></SafeAreaView>;
 }
 
@@ -288,26 +332,26 @@ function SettingsPage({ profile, setProfile, wrapped, user, signOut }) {
 function MorePage({ onNavigate, onSignOut, email }) { return <View style={styles.card}>{[['Categories', 'Manage income and expense labels', '◈'], ['Settings', 'Profile, currency and account', '⚙']].map(([title, hint, icon]) => <Pressable key={title} style={styles.moreItem} onPress={() => onNavigate(title)}><View style={styles.moreIcon}><Text style={styles.moreIconText}>{icon}</Text></View><View style={{ flex: 1 }}><Text style={styles.rowTitle}>{title}</Text><Text style={styles.rowMeta}>{hint}</Text></View><Text style={styles.chevron}>›</Text></Pressable>)}<View style={styles.moreEmail}><Text style={styles.rowMeta}>Signed in as</Text><Text style={styles.rowTitle}>{email}</Text></View><Pressable style={styles.signOutButton} onPress={onSignOut}><Text style={styles.signOutText}>Sign out</Text></Pressable></View>; }
 
 function FinanceModal({ visible, form, setForm, data, currency, onSave }) {
-  const [values, setValues] = useState({}); const [saving, setSaving] = useState(false);
-  useEffect(() => { setValues(form?.initial || {}); }, [form]);
+  const [values, setValues] = useState({}); const [saving, setSaving] = useState(false); const [formError, setFormError] = useState('');
+  useEffect(() => { setValues(form?.initial || {}); setFormError(''); }, [form]);
   if (!form) return null;
   const patch = (key, value) => setValues((old) => ({ ...old, [key]: value }));
   const kind = form.kind; const title = `${form.record ? 'Edit' : 'Add'} ${kind === 'transaction' ? 'transaction' : kind}`;
   const categories = data.categories.filter((x) => kind === 'budget' ? x.type === 'expense' : x.type === (values.type || 'expense'));
-  const save = async () => { setSaving(true); try { const input = kind === 'transaction' ? values : kind === 'budget' ? values : values; await onSave(input); } finally { setSaving(false); } };
+  const save = async () => { setSaving(true); setFormError(''); try { const result = await onSave(values); if (result?.ok === false) setFormError(result.error); } catch (e) { setFormError(friendlyError(e)); } finally { setSaving(false); } };
   return <Modal visible={visible} animationType="slide" transparent onRequestClose={() => setForm(null)}><KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.modalShade}><Pressable style={styles.modalBackdrop} onPress={() => setForm(null)} /><View style={styles.modalSheet}><View style={styles.modalHandle} /><View style={styles.rowBetween}><Text style={styles.modalTitle}>{title}</Text><Pressable onPress={() => setForm(null)}><Text style={styles.modalClose}>×</Text></Pressable></View><ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{ paddingBottom: 22 }}>
     {kind === 'transaction' && <><Text style={styles.fieldLabel}>TYPE</Text><View style={styles.segment}>{['expense', 'income'].map((type) => <Pressable key={type} onPress={() => { patch('type', type); patch('categoryId', ''); }} style={[styles.segmentButton, values.type === type && styles.segmentActive]}><Text style={[styles.segmentText, values.type === type && styles.segmentTextActive]}>{type === 'expense' ? 'Expense' : 'Income'}</Text></Pressable>)}</View><Field label="Amount" value={values.amount || ''} onChangeText={(v) => patch('amount', v)} placeholder="0.00" keyboardType="decimal-pad"/><Field label="Description" value={values.description || ''} onChangeText={(v) => patch('description', v)} placeholder="What was it for?"/><Field label="Date (YYYY-MM-DD)" value={values.transactionDate || today()} onChangeText={(v) => patch('transactionDate', v)} placeholder={today()} />{categoryPicker(categories, values.categoryId, (v) => patch('categoryId', v))}</>}
     {kind === 'budget' && <><Field label="Monthly amount" value={values.amount || ''} onChangeText={(v) => patch('amount', v)} placeholder="0.00" keyboardType="decimal-pad"/><Field label="Month (YYYY-MM)" value={values.budgetMonth || monthNow()} onChangeText={(v) => patch('budgetMonth', v)} placeholder={monthNow()} />{categoryPicker(categories, values.categoryId, (v) => patch('categoryId', v))}</>}
     {kind === 'category' && <><Field label="Category name" value={values.name || ''} onChangeText={(v) => patch('name', v)} placeholder="e.g. Groceries"/><Text style={styles.fieldLabel}>CATEGORY TYPE</Text><View style={styles.segment}>{['expense', 'income'].map((type) => <Pressable key={type} onPress={() => patch('type', type)} style={[styles.segmentButton, values.type === type && styles.segmentActive]}><Text style={[styles.segmentText, values.type === type && styles.segmentTextActive]}>{type === 'expense' ? 'Expense' : 'Income'}</Text></Pressable>)}</View></>}
     {categories.length === 0 && kind !== 'category' ? <Notice text="Create a matching category first in More → Categories." /> : null}
-    <PrimaryButton title={saving ? 'Saving…' : `Save ${kind}`} disabled={saving} onPress={save}/>
+    {formError ? <Notice text={formError} /> : null}<PrimaryButton title={saving ? 'Saving…' : `Save ${kind}`} disabled={saving} onPress={save}/>
   </ScrollView></View></KeyboardAvoidingView></Modal>;
 }
 
 function categoryPicker(categories, selected, onSelect) { return <View style={{ marginBottom: 16 }}><Text style={styles.fieldLabel}>CATEGORY</Text><View style={styles.choiceWrap}>{categories.map((item) => <Pressable key={item.id} onPress={() => onSelect(item.id)} style={[styles.choiceChip, selected === item.id && styles.choiceSelected]}><Text style={[styles.choiceText, selected === item.id && styles.choiceTextSelected]}>{item.name}</Text></Pressable>)}</View></View>; }
-function Field({ label, ...props }) { return <View style={styles.field}><Text style={styles.fieldLabel}>{label.toUpperCase()}</Text><TextInput placeholderTextColor="#a2aea7" style={styles.input} {...props} /></View>; }
-function PrimaryButton({ title, onPress, disabled, compact }) { return <Pressable onPress={onPress} disabled={disabled} style={[styles.primaryButton, compact && styles.primaryCompact, disabled && styles.buttonDisabled]}><Text style={[styles.primaryText, compact && styles.primaryCompactText]}>{title}</Text></Pressable>; }
-function Notice({ text, success, onClose }) { return <View style={[styles.notice, success && styles.noticeSuccess]}><Text style={[styles.noticeText, success && styles.noticeSuccessText]}>{text}</Text>{onClose ? <Pressable onPress={onClose}><Text style={styles.noticeClose}>×</Text></Pressable> : null}</View>; }
+function Field({ label, ...props }) { return <View style={styles.field}><Text style={styles.fieldLabel}>{label.toUpperCase()}</Text><TextInput accessibilityLabel={label} selectionColor={C.green} placeholderTextColor="#a2aea7" style={styles.input} {...props} /></View>; }
+function PrimaryButton({ title, onPress, disabled, compact }) { return <Pressable accessibilityRole="button" accessibilityState={{ disabled: !!disabled }} onPress={onPress} disabled={disabled} style={({ pressed }) => [styles.primaryButton, compact && styles.primaryCompact, disabled && styles.buttonDisabled, pressed && !disabled && styles.buttonPressed]}><Text style={[styles.primaryText, compact && styles.primaryCompactText]}>{title}</Text></Pressable>; }
+function Notice({ text, success, onClose }) { return <View accessibilityRole="alert" style={[styles.notice, success && styles.noticeSuccess]}><Text style={[styles.noticeText, success && styles.noticeSuccessText]}>{text}</Text>{onClose ? <Pressable accessibilityRole="button" accessibilityLabel="Dismiss message" onPress={onClose}><Text style={styles.noticeClose}>×</Text></Pressable> : null}</View>; }
 function EmptyState({ title, body }) { return <View style={styles.empty}><View style={styles.emptyIcon}><Text style={styles.emptyIconText}>↗</Text></View><Text style={styles.emptyTitle}>{title}</Text><Text style={styles.emptyBody}>{body}</Text></View>; }
 function TransactionRow({ item, currency, actions }) { const income = item.type === 'income'; const amount = Number(item.amount) || 0; return <View style={styles.transactionRow}><View style={[styles.txIcon, income && styles.txIconIncome]}><Text style={[styles.txIconText, income && styles.txIconTextIncome]}>{income ? '↗' : '↙'}</Text></View><View style={{ flex: 1 }}><Text numberOfLines={1} style={styles.rowTitle}>{item.description?.trim() || item.category?.name || 'Transaction'}</Text><Text style={styles.rowMeta}>{item.category?.name || 'Uncategorized'} · {humanDate(item.transaction_date)}</Text></View><View style={styles.txAmountWrap}><Text style={[styles.amount, income ? styles.positive : styles.negative]}>{income ? '+' : '−'}{money(amount, currency)}</Text>{actions ? <View style={styles.inlineActions}>{actions}</View> : null}</View></View>; }
 function SmallAction({ title, onPress, danger }) { return <Pressable onPress={onPress} style={styles.smallAction}><Text style={[styles.smallActionText, danger && styles.dangerText]}>{title}</Text></Pressable>; }
@@ -325,7 +369,7 @@ const styles = StyleSheet.create({
   tabbar: { flexDirection: 'row', backgroundColor: C.white, borderTopColor: C.line, borderTopWidth: 1, paddingTop: 9, paddingBottom: Platform.OS === 'ios' ? 5 : 10 }, tabItem: { flex: 1, alignItems: 'center', gap: 3 }, tabIcon: { fontSize: 19, color: '#9da9a2', fontWeight: '700' }, tabSelected: { color: C.green }, tabLabel: { color: '#849189', fontSize: 9, fontWeight: '600' }, tabLabelSelected: { color: C.green, fontWeight: '800' }, backbar: { paddingHorizontal: 20, paddingVertical: 13, backgroundColor: C.white, borderTopColor: C.line, borderTopWidth: 1 }, backButton: { alignSelf: 'flex-start' }, backText: { color: C.green, fontWeight: '700', fontSize: 13 },
   center: { flex: 1, backgroundColor: C.paper, alignItems: 'center', justifyContent: 'center', padding: 30, gap: 14 }, muted: { fontSize: 12, color: C.muted }, mutedCenter: { color: C.muted, fontSize: 13, lineHeight: 21, textAlign: 'center', maxWidth: 310 },
   authWrap: { flex: 1 }, authContent: { flexGrow: 1, alignItems: 'center', justifyContent: 'center', padding: 23, paddingTop: 36 }, brandMarkLarge: { width: 54, height: 54, borderRadius: 19, backgroundColor: C.green, alignItems: 'center', justifyContent: 'center', marginBottom: 11 }, brandGlyphLarge: { fontSize: 31, color: C.white, fontWeight: '900' }, logoBig: { fontSize: 24, fontWeight: '900', color: C.ink, letterSpacing: -0.7 }, authSub: { color: C.muted, fontSize: 12, marginTop: 6, marginBottom: 26 }, authCard: { width: '100%', maxWidth: 450, backgroundColor: C.white, borderRadius: 22, borderWidth: 1, borderColor: C.line, padding: 21 }, authTitle: { fontSize: 19, color: C.ink, fontWeight: '800', marginBottom: 17, letterSpacing: -0.4 }, secureNote: { color: C.muted, fontSize: 10, marginTop: 18, textAlign: 'center', maxWidth: 280 },
-  field: { marginBottom: 15 }, fieldLabel: { fontSize: 9, color: C.muted, fontWeight: '800', letterSpacing: 0.8, marginBottom: 7 }, input: { height: 47, borderRadius: 12, borderColor: C.line, borderWidth: 1, backgroundColor: '#fcfdfb', paddingHorizontal: 13, color: C.ink, fontSize: 13 }, primaryButton: { minHeight: 48, alignItems: 'center', justifyContent: 'center', borderRadius: 13, backgroundColor: C.green, marginTop: 5 }, primaryText: { color: C.white, fontSize: 13, fontWeight: '800' }, primaryCompact: { minHeight: 35, paddingHorizontal: 14, borderRadius: 10, marginTop: 0 }, primaryCompactText: { fontSize: 11 }, buttonDisabled: { opacity: 0.5 }, linkButton: { paddingVertical: 13, alignItems: 'center' }, switchMode: { alignItems: 'center', marginTop: 5, paddingVertical: 7 },
+  field: { marginBottom: 15 }, fieldLabel: { fontSize: 9, color: C.muted, fontWeight: '800', letterSpacing: 0.8, marginBottom: 7 }, input: { height: 47, borderRadius: 12, borderColor: C.line, borderWidth: 1, backgroundColor: '#fcfdfb', paddingHorizontal: 13, color: C.ink, fontSize: 13 }, primaryButton: { minHeight: 48, alignItems: 'center', justifyContent: 'center', borderRadius: 13, backgroundColor: C.green, marginTop: 5 }, primaryText: { color: C.white, fontSize: 13, fontWeight: '800' }, primaryCompact: { minHeight: 35, paddingHorizontal: 14, borderRadius: 10, marginTop: 0 }, primaryCompactText: { fontSize: 11 }, buttonDisabled: { opacity: 0.5 }, buttonPressed: { opacity: 0.88, transform: [{ scale: 0.99 }] }, linkButton: { paddingVertical: 13, alignItems: 'center' }, switchMode: { alignItems: 'center', marginTop: 5, paddingVertical: 7 },
   notice: { flexDirection: 'row', padding: 11, backgroundColor: '#fff1ef', borderRadius: 11, marginBottom: 13, alignItems: 'center' }, noticeText: { flex: 1, color: '#9f3f39', fontSize: 11, lineHeight: 16 }, noticeSuccess: { backgroundColor: '#eaf6ee' }, noticeSuccessText: { color: C.green }, noticeClose: { color: C.muted, fontSize: 20, marginLeft: 10 },
   actionLine: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }, filters: { flexDirection: 'row', gap: 7, marginBottom: 14 }, filterPill: { paddingHorizontal: 13, paddingVertical: 8, backgroundColor: C.white, borderColor: C.line, borderWidth: 1, borderRadius: 20 }, filterActive: { backgroundColor: C.pale, borderColor: '#d1e6d8' }, filterText: { fontSize: 10, fontWeight: '700', color: C.muted }, filterTextActive: { color: C.green }, inlineActions: { flexDirection: 'row', gap: 5 }, smallAction: { paddingHorizontal: 7, paddingVertical: 5, backgroundColor: '#f3f6f3', borderRadius: 7 }, smallActionText: { color: C.green, fontSize: 9, fontWeight: '800' }, dangerText: { color: C.red },
   monthChooser: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', alignSelf: 'flex-start', minWidth: 188, backgroundColor: C.white, borderWidth: 1, borderColor: C.line, borderRadius: 13, paddingHorizontal: 7, paddingVertical: 4, marginBottom: 15 }, monthArrow: { width: 31, height: 30, alignItems: 'center', justifyContent: 'center' }, monthArrowText: { color: C.green, fontSize: 24, lineHeight: 27, fontWeight: '500' }, monthText: { color: C.ink, fontSize: 11, fontWeight: '800' },

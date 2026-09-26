@@ -12,9 +12,11 @@ The ignored `mobile/.env.local` contains the same public Supabase URL and publis
 
 ## Email confirmation deep link
 
-The installed app registers the `spendwise://` URL scheme. In Supabase, add `spendwise://auth/callback` under **Authentication → URL Configuration → Redirect URLs**. The mobile app passes this callback when it creates an account and handles Supabase token or PKCE code callbacks. Supabase still needs a working SMTP provider and an email confirmation template that preserves the requested redirect URL.
+The installed app registers the `spendwise://` URL scheme. In Supabase, add `spendwise://auth/callback` under **Authentication → URL Configuration → Redirect URLs**. The mobile app passes this callback when it creates an account and handles Supabase token or PKCE code callbacks.
 
-For confirmation-link testing, use a preview build installed on a phone. Expo Go uses its own temporary URL and cannot register the installed app's `spendwise://` scheme.
+For Expo Go signup testing, also add `exp://**/--/auth/callback` under **Authentication → URL Configuration → Redirect URLs**. Expo Go creates a temporary device-specific callback, and the app handles that callback while the development server is running. Remove this broad development redirect before production. For the installed app, use only its stable `spendwise://auth/callback` URL.
+
+Email confirmation still requires a working SMTP provider. If you customized the Supabase confirmation or recovery email template, ensure its link honors the requested redirect destination (`{{ .RedirectTo }}`); a template that hardcodes the web callback can send mobile users back to the website instead.
 
 ## Build installable apps
 
